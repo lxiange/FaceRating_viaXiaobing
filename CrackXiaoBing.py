@@ -157,3 +157,9 @@ def multiOCR_3(times):
 count=0
 multiOCR_3(800)
 
+''' TODO(lxiange):
+Refactor the code to follow the PEP8.
+Integrate two funs(getNum&OCR), to provide an API.
+Enhance multi-threading support. 
+Add ReadMe.md
+'''
