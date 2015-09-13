@@ -14,6 +14,7 @@ def getRawImgUrl(infile):
     imgUrl='http://imageplatform.trafficmanager.cn'+json.loads(resp.read().decode('utf-8'))['Url']
     return imgUrl
 
+
 def getRespImgUrl(imgUrl):
     sys_time=int(time.time())
     CompUrl='http://kan.msxiaobing.com/Api/ImageAnalyze/Comparison'
@@ -24,9 +25,11 @@ def getRespImgUrl(imgUrl):
         'content[imageUrl]':imgUrl,
         }
     
-    resp=urllib.request.urlopen(CompUrl,data=urllib.parse.urlencode(form).encode('utf-8'))
+    resp=urllib.request.urlopen(CompUrl,
+        data=urllib.parse.urlencode(form).encode('utf-8'))
     respUrl=json.loads(resp.read().decode('utf-8'))['content']['imageUrl']
     return respUrl
+
 
 def saveUrlAsFile(respurl,outfile):
     file_out=open(outfile,'wb')
@@ -34,29 +37,20 @@ def saveUrlAsFile(respurl,outfile):
     file_out.write(resp.read())
     file_out.close()
 
-'''
-def getScoreImg(stuid):
-    rawurl=getRawImgUrl(str(stuid)+'.jpg')
-    respurl=getRespImgUrl(rawurl)
-    saveUrlAsFile(respurl,str(stuid)+'_temp.jpg')
-    img1=Image.open(str(stuid)+'_temp.jpg')
-    box=(240,1320,1210,1500)    #(left, upper, right, lower)
-    img2=img1.crop(box)
-    img2.save('socre/'+str(stuid)+'_score.jpg')#no good
-    os.remove(str(stuid)+'_temp.jpg')
-'''
 
-def getScoreImg(infile):
-    rawurl=getRawImgUrl('raw/'+infile)      #no good
+def getScoreImg(inPic, outPic):
+    rawurl=getRawImgUrl(inPic)      #no good
     respurl=getRespImgUrl(rawurl)
-    saveUrlAsFile(respurl,'temp_'+infile)
-    img1=Image.open('temp_'+infile)
+    saveUrlAsFile(respurl, inPic+'.temp')
+    img1=Image.open(inPic+'.temp')
     box=(240,1300,1210,1520)    #(left, upper, right, lower)
     img2=img1.crop(box)
-    img2.save('score/'+'r_'+infile)#no good
-    os.remove('temp_'+infile)
+    img1.close()
+    img2.save(outPic)#no good
+    os.remove(inPic+'.temp')
 
-def getStrViaBaiduOCR(infile):
+
+def getNumViaBaiduOCR(infile):
     input_file=open(infile,'rb')
     img_base64=base64.b64encode(input_file.read())
     url = 'http://apis.baidu.com/apistore/idlocr/ocr'
@@ -70,90 +64,107 @@ def getStrViaBaiduOCR(infile):
 
     decode_data=urllib.parse.urlencode(data)
     req=urllib.request.Request(url,data=decode_data.encode('utf-8'))
-
     req.add_header("Content-Type", "application/x-www-form-urlencoded")
     req.add_header("apikey", "14cdd85738c717e546a5b6852c3e1631")
-
     resp=urllib.request.urlopen(req)
-
     content=json.loads(resp.read().decode('utf-8'))
-    #for lines in content['retData']:
-    #    print(lines['word'])
-    #print(content['retData'][0]['word'])
-    return content['retData'][0]['word']
+    textStr = content['retData'][0]['word']
 
-
-def getNum(textStr):
     match=re.search(r'\d{2}|\d\.\d',textStr)
     pointStr=match.group(0)
     point=float(pointStr)
-    if point<10:
-        return point*10
-    else:
-        return point
+    if point <= 10:      # . is identified
+        point *= 10
+    if point <= 20:      # 7 is identified as 1
+        point += 60
+    return point
 
-'''
-getScoreImg(1)
-getNumViaBaiduOCR('1_score.jpg')
-getScoreImg(2)
-getNumViaBaiduOCR('2_score.jpg')
-getScoreImg(3)
-getNumViaBaiduOCR('3_score.jpg')
-'''
 
-def loopRank(num):
-    for ii in range(num):
-        global pic_list, count, err_list
+def rank_pic(infile):
+    getScoreImg(infile, infile[-13:-4]+'_temp.jpg')
+    point=getNumViaBaiduOCR(infile[-13:-4]+'_temp.jpg')
+    os.remove(infile[-13:-4]+'_temp.jpg')
+    if not 10<point<100: 
+        return -1
+    return int(point)
+
+
+#print(rank_pic('141015013.jpg'))
+#os.listdir('raw')
+
+
+list_lock=threading.Lock()
+file_lock=threading.Lock()
+error_lock=threading.Lock()
+def rank_all(path, pic_list, fp, fp2):
+    list_lock.acquire()
+    while(len(pic_list)>0):
         try:
             pic=pic_list.pop()
-            t1=time.time()
-            count+=1
-            getScoreImg(pic)
-            t2=time.time()
-            print(pic,':', '%.2f'%(t2-t1), '----', count)
-            os.remove('raw/'+pic)
-        except:
-            err_list.append(ii)
-            continue
+        finally:
+            list_lock.release()
 
-def multiRank_3(times):
-    th1=threading.Thread(target=loopRank, args=(times//3,))
-    th2=threading.Thread(target=loopRank, args=(times//3,))
-    th3=threading.Thread(target=loopRank, args=(times//3,))
-    th1.start()
-    th2.start()
-    th3.start()
+        if pic:
+            try:
+                point = rank_pic(path+pic)
+                file_lock.acquire()
+                fp.write('%s----%d\n'%(pic[-13:-4],point))
+                fp.flush()
+                file_lock.release()
+            except:
+                error_lock.acquire()
+                fp2.write(pic+'\n')
+                fp2.flush()
+                error_lock.release()
 
-def loopOCR(times,outfile,pic_list):
-    of=open(outfile,'a')
-    global count
-    for ii in range(times):
-        try:
-            pic=pic_list.pop()
-            text=getStrViaBaiduOCR('score/'+pic)
-            point=getNum(text)
-            if not 10<point<100:continue
-            count+=1
-            of.write(pic+'----'+str(point)+'\n')
-            of.flush()
-            print(pic,count)
-            os.remove('score/'+pic)
-        except:
-            continue
-    of.close()
+            print(pic, point)
+        list_lock.acquire()
 
-def multiOCR_3(times):
-    p_list=os.listdir('score')
-    th1=threading.Thread(target=loopOCR, args=(times//3,'output1.txt',p_list))
-    th2=threading.Thread(target=loopOCR, args=(times//3,'output2.txt',p_list))
-    th3=threading.Thread(target=loopOCR, args=(times//3,'output3.txt',p_list))
-    th1.start()
-    th2.start()
-    th3.start()
+    list_lock.release()
 
 
-#pic_list=os.listdir('score')
-#print(pic_list)
-count=0
-multiOCR_3(800)
+def main():
+    pic_list=os.listdir('raw')
+    f1 = open('output.txt', 'w')
+    f2 = open('error.txt', 'w')
+    thread_list = [threading.Thread(target=rank_all, 
+        args=('raw/', pic_list, f1, f2)) for i in range(1,7)]
+    for i in thread_list:
+        i.start()
 
+    for i in thread_list:
+        i.join()
+    f1.close()
+    f2.close()
+    print('All is well!')
+
+
+def scoreSort(infile, outfile):
+    fp=open(infile)
+    score_list=[]
+    for i in fp.readlines():
+        #print(i)
+        if len(i)<10:continue
+        temp=i.strip().split('----')
+        temp[1]=int(temp[1])
+        score_list.append(temp)
+    answer=sorted(score_list,key=lambda stu:stu[1],reverse=True)
+    #print(answer)
+    f2=open(outfile,'w')
+    for i in answer:
+        f2.write('%s----%s\n'%(str(i)[2:11], str(i)[14:16]))
+    f2.close()
+
+
+if __name__ == '__main__':
+    #main()
+    scoreSort('output.txt', 'final15.txt')
+
+
+
+''' TODO(lxiange):
+Refactor the code to follow the PEP8.
+Integrate two funs(getNum&OCR), to provide an API.(DONE)
+Enhance multi-threading support. (DONE)
+Add ReadMe.md
+'''
