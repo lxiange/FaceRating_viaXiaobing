@@ -4,6 +4,13 @@ import base64, json, time, os, threading, re
 import urllib.parse, urllib.request
 from PIL import Image
 
+"""
+This project is too FUCKING UGLY, I don't want to see it any more.
+Most of functions in this project is refactored in another project.
+Maybe I will rewrite this project, or maybe not. Who knows...
+
+"""
+
 def getRawImgUrl(infile):
     file_in=open(infile,'rb')
     img_base64=base64.b64encode(file_in.read())
@@ -158,7 +165,7 @@ def scoreSort(infile, outfile):
 
 if __name__ == '__main__':
     #main()
-    scoreSort('output.txt', 'final15.txt')
+    scoreSort('output.txt', 'final12.txt')
 
 
 
@@ -167,4 +174,5 @@ Refactor the code to follow the PEP8.
 Integrate two funs(getNum&OCR), to provide an API.(DONE)
 Enhance multi-threading support. (DONE)
 Add ReadMe.md
+ReCall baiduOCR for failed pic!!!
 '''

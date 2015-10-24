@@ -37,12 +37,15 @@ Dict4={
 
 
 def downPic(stu_id, save_path, grade, platform_num):   #str, str, int, int
-    platform=[
-    'http://desktop.nju.edu.cn:8080/jiaowu/',
-    'http://jwas2.nju.edu.cn:8080/jiaowu/',
-    'http://jwas3.nju.edu.cn:8080/jiaowu/',
-    ]
-    req_url=platform[platform_num]+'Data/Photos/'+str(grade)+'/'+stu_id+'.JPG'
+    if platform_num < 10:    
+        platform=[
+        'http://desktop.nju.edu.cn:8080/jiaowu/',
+        'http://jwas2.nju.edu.cn:8080/jiaowu/',
+        'http://jwas3.nju.edu.cn:8080/jiaowu/',
+        ]
+        req_url=platform[platform_num]+'Data/Photos/'+str(grade)+'/'+stu_id+'.JPG'
+    elif platform_num==88:
+        req_url='http://jw.nju.edu.cn/oldweb/cet/uploadimages/'+str(stu_id)+'.jpg'
     pic=urllib.request.urlopen(req_url)
     if pic.code==200:
         print('download %s'%stu_id)
@@ -57,8 +60,10 @@ def download_all(grade, save_path, id_dict, platform_num):
             sub_dict = depart[1]['detail']
             for sub_dp in sub_dict.items():
                 os.mkdir((save_path+depart[1]['college']+'/'+sub_dp[1]).encode('gbk'))
-                for id_nums in range(1, 222):
+                for id_nums in range(1, 288):
                     stu_id = str(grade*10000000+int(depart[0])*10000+int(sub_dp[0])*1000+id_nums)
+                    if 1<=grade<10:
+                        stu_id='0'+stu_id
                     try:
                         downPic(stu_id, save_path+depart[1]['college']+'/'+sub_dp[1]+'/', grade, platform_num)
                     except:
@@ -77,4 +82,6 @@ def download_all(grade, save_path, id_dict, platform_num):
 if __name__ == '__main__':
     if not os.path.exists('数据'):
         os.mkdir('数据'.encode('gbk'))#not good, should check if exist.
-    download_all(15, '数据/',Dict4, 2)
+    download_all(13, '数据/',Dict4, 88)
+
+#still ugly..
